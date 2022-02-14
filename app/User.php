@@ -10,29 +10,15 @@ class User extends Authenticatable
 {
     use Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array
-     */
     protected $fillable = [
         'name', 'email', 'password',
     ];
 
-    /**
-     * The attributes that should be hidden for arrays.
-     *
-     * @var array
-     */
+   
     protected $hidden = [
         'password', 'remember_token',
     ];
 
-    /**
-     * The attributes that should be cast to native types.
-     *
-     * @var array
-     */
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
@@ -45,15 +31,12 @@ class User extends Authenticatable
         return $this->hasMany(Micropost::class);
     }
     
-    /**
-     * このユーザに関係するモデルの件数をロードする。
-     */
     public function loadRelationshipCounts()
     {
-        $this->loadCount(['microposts','followings','followers']);
+        $this->loadCount(['microposts','followings','followers','favorites']);
     }
     
-   /**
+    /**
      * このユーザがフォロー中のユーザ。（ Userモデルとの関係を定義）
      */
     public function followings()
@@ -68,12 +51,6 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(User::class, 'user_follow', 'follow_id', 'user_id')->withTimestamps();
     }
-/**
-     * $userIdで指定されたユーザをフォローする。
-     *
-     * @param  int  $userId
-     * @return bool
-     */
      
     public function follow($userId)
     {
@@ -92,12 +69,6 @@ class User extends Authenticatable
         }
     }
 
-    /**
-     * $userIdで指定されたユーザをアンフォローする。
-     *
-     * @param  int  $userId
-     * @return bool
-     */
     public function unfollow($userId)
     {
         // すでにフォローしているか
@@ -115,12 +86,6 @@ class User extends Authenticatable
         }
     }
 
-    /**
-     * 指定された $userIdのユーザをこのユーザがフォロー中であるか調べる。フォロー中ならtrueを返す。
-     *
-     * @param  int  $userId
-     * @return bool
-     */
     public function is_following($userId)
     {
         // フォロー中ユーザの中に $userIdのものが存在するか
@@ -138,5 +103,69 @@ class User extends Authenticatable
         $userIds[] = $this->id;
         // それらのユーザが所有する投稿に絞り込む
         return Micropost::whereIn('user_id', $userIds);
+    }
+    
+    
+    
+    /**
+     * このユーザがお気に入り中の投稿。（ Userモデルとの関係を定義）
+     */
+    public function favorites()
+    {
+        return $this->belongsToMany(Micropost::class, 'favorites', 'user_id', 'micropost_id')->withTimestamps();
+    }
+    
+    /**
+     * $micropostIdで指定された投稿内容をお気に入りにする。
+     *
+     */
+    public function favorite($userId)
+    {   
+        // すでにお気に入り登録しているか
+        $exist = $this->is_favoriting($userId);
+        
+        // 対象が自分自身かどうか
+        $its_me = $this->id == $userId;
+        
+        //すでにお気に入り登録しているか
+        if ($exist || $its_me){
+            //お気に入り登録してたら何もしない
+            return false;
+        }else{
+            //上記以外はお気に入り登録する
+            $this->favorites()->attach($userId);
+            return true;
+        }
+    }
+    
+    
+    /**
+     * $micropostIdで指定されたユーザをアンフォローする。
+     *
+     * @param  int  $userId
+     * @return bool
+     */
+    public function unfavorite($userId)
+    {   
+        // すでにお気に入り登録しているか
+        $exist = $this->is_favoriting($userId);
+        // 対象が自分自身かどうか
+        $its_me = $this->id == $userId;
+        // すでにお気に入り登録しているか
+        if($exist && !$its_me){
+            //お気に入り登録していたら、登録を外す
+            $this->favorites()->detach($userId);
+            return true;
+        }else{
+            //上記以外は何もしない
+            return false;
+        }
+    }    
+   
+   
+    public function is_favoriting($userId)
+    {
+        //お気に入り投稿中の$micropostIdに、$userIdの物が存在するか
+      return $this->favorites()->where('micropost_id', $userId)->exists();
     }
 }
